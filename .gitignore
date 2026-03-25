@@ -1,0 +1,40 @@
+# ==============================
+# Entornos Virtuales
+# ==============================
+# ¡NUNCA subir el entorno virtual! Cada persona debe crear el suyo.
+venv/
+env/
+.env
+
+# ==============================
+# Datos y Modelos (Generados localmente)
+# ==============================
+# No subimos el CSV porque el script generar_dataset.py lo crea desde cero.
+# Si luego tienes datos reales muy pesados o confidenciales, esto los protege.
+datos/*.csv
+
+# No subimos los modelos compilados porque el script entrenar_modelo.py los genera.
+# Los archivos binarios (.pkl) ensucian el historial de Git.
+*.pkl
+modelo_svm_cascada.pkl
+scaler_cascada.pkl
+
+# ==============================
+# Archivos de Python Temporales
+# ==============================
+# Python crea estos archivos ocultos al ejecutar el código para ser más rápido.
+__pycache__/
+*.py[cod]
+*$py.class
+
+# ==============================
+# Archivos del Sistema Operativo y Editores
+# ==============================
+# Mac y Windows suelen crear estos archivos basura ocultos.
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+# Configuraciones locales de editores (VS Code, PyCharm, etc.)
+.vscode/
+.idea/
