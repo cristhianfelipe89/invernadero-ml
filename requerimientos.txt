@@ -3,3 +3,7 @@ numpy
 scikit-learn
 matplotlib
 joblib
+fastapi
+uvicorn
+pydantic
+requests

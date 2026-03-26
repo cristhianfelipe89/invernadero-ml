@@ -18,6 +18,9 @@ Para evitar conflictos con otras librerías en tu PC, crearemos un entorno aisla
 
 **En Windows:**
 \`\`\`cmd
+
+Remove-Item -Recurse -Force venv
+
 python -m venv venv
 venv\Scripts\activate
 \`\`\`

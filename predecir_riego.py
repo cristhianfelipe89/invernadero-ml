@@ -16,11 +16,19 @@ except FileNotFoundError:
 # 2. Simular una lectura en vivo de los sensores (ej. datos llegando de un Arduino/ESP32)
 # Supongamos que hace mucho calor, la tierra base se secó y pasaron 5 horas.
 lectura_sensores = {
-    'temperatura': [36.5],
-    'humedad_aire': [45.0],
-    'humedad_tierra_base': [30.0],  # Tierra por debajo del 35%
-    'horas_desde_ultimo_riego': [5.0]
+    'temperatura': [26.0],             # Un clima fresco para Cali
+    'humedad_aire': [65.0],            # Aire húmedo
+    'humedad_tierra_base': [80.0],     # ¡Tierra súper mojada! (80%)
+    'horas_desde_ultimo_riego': [0.5]  # Lo regamos hace apenas media hora
 }
+
+##
+##lectura_sensores = {
+##    'temperatura': [26.0],             # Un clima fresco para Cali
+##    'humedad_aire': [65.0],            # Aire húmedo
+##    'humedad_tierra_base': [80.0],     # ¡Tierra súper mojada! (80%)
+##    'horas_desde_ultimo_riego': [0.5]  # Lo regamos hace apenas media hora
+##}
 
 # Convertimos el diccionario a un DataFrame de Pandas (el formato que le gusta al modelo)
 df_nueva_lectura = pd.DataFrame(lectura_sensores)
