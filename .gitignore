@@ -38,3 +38,5 @@ ehthumbs.db
 # Configuraciones locales de editores (VS Code, PyCharm, etc.)
 .vscode/
 .idea/
+estructura.txt
+full_dump.txt

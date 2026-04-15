@@ -1,0 +1,4 @@
+modelo,mejores_params,accuracy,precision,recall,f1,roc_auc,f1_cv_mean,f1_cv_std,tiempo_entrenamiento
+KNN,"{'metric': 'manhattan', 'n_neighbors': 15, 'weights': 'distance'}",0.936,0.9272,0.8951,0.9109,0.9493,0.9012,0.0148,5.61
+DecisionTree,"{'criterion': 'entropy', 'max_depth': 5, 'min_samples_split': 10}",0.9577,0.9549,0.9279,0.9412,0.9536,0.9336,0.0083,1.38
+SVM,"{'C': 10, 'gamma': 'scale', 'kernel': 'rbf'}",0.9307,0.9237,0.8832,0.903,0.9477,0.902,0.0123,35.12

@@ -1,56 +1,73 @@
-import pandas as pd
-import numpy as np
-import random
 import os
+import random
+import numpy as np
+import pandas as pd
 
-print("Generando dataset de 10,000 registros para sistema en cascada...")
+# ============================================================
+# CONFIGURACIÓN
+# ============================================================
+SEMILLA = 42
+N_REGISTROS = 10_000
+RUTA_CSV = "datos/invernadero_cascada.csv"
 
-# Asegurarnos de que la carpeta 'datos' exista
-if not os.path.exists('datos'):
-    os.makedirs('datos')
+FEATURES = [
+    "temperatura",
+    "humedad_aire",
+    "humedad_tierra_base",
+    "horas_desde_ultimo_riego",
+]
+TARGET = "estado_riego"
 
-# Semilla para que los resultados sean reproducibles
-np.random.seed(42)
-n_registros = 10000
 
-# 1. Generar variables simuladas (clima de Cali aprox)
-temperatura = np.round(np.random.uniform(22.0, 40.0, n_registros), 1)
-humedad_aire = np.round(np.random.uniform(30.0, 90.0, n_registros), 1)
-humedad_tierra_base = np.round(np.random.uniform(10.0, 95.0, n_registros), 1)
-horas_desde_ultimo_riego = np.round(
-    np.random.uniform(0.5, 24.0, n_registros), 1)
+def generar_dataset(n_registros: int = N_REGISTROS, semilla: int = SEMILLA) -> pd.DataFrame:
+    """Genera el dataset simulado del invernadero."""
+    np.random.seed(semilla)
+    random.seed(semilla)
 
-estado_riego = []
+    temperatura = np.round(np.random.uniform(22.0, 40.0, n_registros), 1)
+    humedad_aire = np.round(np.random.uniform(30.0, 90.0, n_registros), 1)
+    humedad_tierra = np.round(np.random.uniform(10.0, 95.0, n_registros), 1)
+    horas_riego = np.round(np.random.uniform(0.5, 24.0, n_registros), 1)
 
-# 2. Lógica del sistema en cascada
-for i in range(n_registros):
-    temp = temperatura[i]
-    tierra = humedad_tierra_base[i]
-    horas = horas_desde_ultimo_riego[i]
+    estado = []
+    for t, h_t, h_r in zip(temperatura, humedad_tierra, horas_riego):
+        # REGLA DE DOMINIO (sistema en cascada):
+        # Tierra seca (<35%) O (tierra medio-seca + calor + varias horas sin regar)
+        if h_t < 35.0 or (h_t < 50.0 and t > 32.0 and h_r > 4.0):
+            estado.append(1 if random.random() > 0.05 else 0)  # 95% -> regar
+        else:
+            estado.append(0 if random.random() > 0.05 else 1)  # 95% -> no regar
 
-    # REGLA: Tierra seca (<35%) O (Tierra medio seca + Calor + Varias horas sin regar)
-    if tierra < 35.0 or (tierra < 50.0 and temp > 32.0 and horas > 4.0):
-        # 95% de probabilidad de Iniciar Ciclo (1)
-        estado = 1 if random.random() > 0.05 else 0
-    else:
-        # 95% de probabilidad de No Regar (0)
-        estado = 0 if random.random() > 0.05 else 1
+    df = pd.DataFrame({
+        "temperatura": temperatura,
+        "humedad_aire": humedad_aire,
+        "humedad_tierra_base": humedad_tierra,
+        "horas_desde_ultimo_riego": horas_riego,
+        TARGET: estado,
+    })
 
-    estado_riego.append(estado)
+    # Validar que las columnas estén en el orden esperado
+    assert list(df.columns) == FEATURES + [TARGET], "Error en el orden de columnas"
+    return df
 
-# 3. Crear el DataFrame
-df = pd.DataFrame({
-    'temperatura': temperatura,
-    'humedad_aire': humedad_aire,
-    'humedad_tierra_base': humedad_tierra_base,
-    'horas_desde_ultimo_riego': horas_desde_ultimo_riego,
-    'estado_riego': estado_riego
-})
 
-# 4. Guardar físicamente el archivo CSV
-ruta_archivo = 'datos/invernadero_cascada.csv'
-df.to_csv(ruta_archivo, index=False)
+def main():
+    # Crear carpeta si no existe
+    if not os.path.exists("datos"):
+        os.makedirs("datos")
 
-print(f"¡Éxito! Archivo guardado en: {ruta_archivo}")
-print("\nDistribución de las clases generadas:")
-print(df['estado_riego'].value_counts())
+    print("Generando dataset de 10,000 registros para sistema en cascada...")
+    df = generar_dataset()
+    df.to_csv(RUTA_CSV, index=False)
+
+    print(f"✅ Archivo guardado en: {RUTA_CSV}")
+    print(f"Total de registros: {len(df)}")
+    print(f"\nDistribución de clases:")
+    print(df[TARGET].value_counts())
+    print(f"\nClase 0 (No regar): {(df[TARGET]==0).sum()}")
+    print(f"Clase 1 (Regar):    {(df[TARGET]==1).sum()}")
+
+
+if __name__ == "__main__":
+    main()
+

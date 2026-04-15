@@ -1,54 +1,53 @@
+import json
 import joblib
 import pandas as pd
 
-print("🌱 Iniciando Sistema de Predicción en Vivo...")
+print("🌱 Iniciando Sistema de Predicción en Vivo (SVM + Umbral Óptimo)...")
 
-# 1. Cargar el modelo y el escalador previamente entrenados
+# 1. Cargar el modelo, el escalador y el umbral previamente entrenados
 try:
     scaler = joblib.load('scaler_cascada.pkl')
     modelo_svm = joblib.load('modelo_svm_cascada.pkl')
-    print("✅ Modelo y escalador cargados correctamente.\n")
+    with open('umbral_optimo.json', 'r') as f:
+        config_umbral = json.load(f)
+    UMBRAL = float(config_umbral['umbral'])
+    print(
+        f"✅ Modelo SVM, escalador y umbral cargados (umbral = {UMBRAL:.2f}).\n")
 except FileNotFoundError:
-    print("❌ Error: No se encontraron los archivos .pkl.")
+    print("❌ Error: No se encontraron los archivos .pkl o el umbral_optimo.json.")
     print("Por favor, ejecuta primero 'python entrenar_modelo.py' para generarlos.")
     exit()
 
-# 2. Simular una lectura en vivo de los sensores (ej. datos llegando de un Arduino/ESP32)
-# Supongamos que hace mucho calor, la tierra base se secó y pasaron 5 horas.
+# 2. Simular una lectura en vivo de los sensores
 lectura_sensores = {
-    'temperatura': [26.0],             # Un clima fresco para Cali
-    'humedad_aire': [65.0],            # Aire húmedo
-    'humedad_tierra_base': [80.0],     # ¡Tierra súper mojada! (80%)
-    'horas_desde_ultimo_riego': [0.5]  # Lo regamos hace apenas media hora
+    'temperatura': [36.0],             # Clima caluroso en Cali
+    'humedad_aire': [55.0],            # Aire moderado
+    'humedad_tierra_base': [28.0],     # Tierra seca (< 35%)
+    'horas_desde_ultimo_riego': [5.0]  # 5 horas sin regar
 }
 
-##
-##lectura_sensores = {
-##    'temperatura': [26.0],             # Un clima fresco para Cali
-##    'humedad_aire': [65.0],            # Aire húmedo
-##    'humedad_tierra_base': [80.0],     # ¡Tierra súper mojada! (80%)
-##    'horas_desde_ultimo_riego': [0.5]  # Lo regamos hace apenas media hora
-##}
-
-# Convertimos el diccionario a un DataFrame de Pandas (el formato que le gusta al modelo)
+# Convertimos a DataFrame
 df_nueva_lectura = pd.DataFrame(lectura_sensores)
 
 print("📊 Nueva lectura de sensores recibida:")
 print(df_nueva_lectura.to_string(index=False))
 
-# 3. Escalar los datos nuevos
-# ¡Súper importante! Usamos transform() y NO fit_transform().
-# Esto aplica exactamente la misma escala matemática que aprendió en el entrenamiento.
+# 3. Escalar los datos nuevos (transform, NO fit_transform)
 lectura_escalada = scaler.transform(df_nueva_lectura)
 
-# 4. Hacer la predicción
-prediccion = modelo_svm.predict(lectura_escalada)
+# 4. Predicción usando probabilidad + umbral óptimo
+proba = float(modelo_svm.predict_proba(lectura_escalada)[0, 1])
+prediccion = int(proba >= UMBRAL)
 
-# 5. Interpretar la decisión final para el usuario (o para el relé de la bomba de agua)
+# 5. Interpretar la decisión final
 print("\n🤖 DECISIÓN DEL MODELO SVM:")
-print("-" * 40)
-if prediccion[0] == 1:
+print("-" * 45)
+print(f"Probabilidad de regar : {proba:.4f}")
+print(f"Umbral aplicado       : {UMBRAL:.2f}")
+print(f"¿Supera el umbral?    : {'SÍ' if prediccion == 1 else 'NO'}")
+print("-" * 45)
+if prediccion == 1:
     print("💧 ACCIÓN: ¡INICIAR CICLO DE CASCADA! (Válvula ABIERTA)")
 else:
     print("☀️ ACCIÓN: No regar por ahora. (Válvula CERRADA)")
-print("-" * 40)
+print("-" * 45)

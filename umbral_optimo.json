@@ -1,0 +1,9 @@
+{
+  "umbral": 0.3,
+  "criterio": "fallback: max recall (ning\u00fan umbral cumpli\u00f3 el m\u00ednimo)",
+  "modelo": "SVM",
+  "mejores_params_svm": "{'C': 10, 'gamma': 'scale', 'kernel': 'rbf'}",
+  "precision_en_test": 0.8863,
+  "recall_en_test": 0.9179,
+  "f1_en_test": 0.9018
+}

@@ -1,44 +1,82 @@
+"""
+API REST del invernadero inteligente (FastAPI).
+
+El sistema opera en 3 CAPAS EN CASCADA:
+  1) Validación de hardware (sensor dañado → bloquear).
+  2) Alertas climáticas (temperatura extrema → avisar).
+  3) Modelo SVM + umbral óptimo → decidir riego.
+
+Ejecutar:
+    uvicorn api_riego:app --reload
+
+Documentación interactiva:
+    http://127.0.0.1:8000/docs
+"""
+import json
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import joblib
 import pandas as pd
 
-# Inicializar la aplicación API
-app = FastAPI(title="API Invernadero - Sistema en Cascada con Alertas")
+# ============================================================
+# INICIALIZACIÓN
+# ============================================================
+app = FastAPI(
+    title="API Invernadero - Sistema en Cascada con SVM",
+    description="Predicción de riego con SVM optimizado y umbral ajustado",
+    version="2.0"
+)
 
-print("Cargando modelo SVM y escalador...")
+print("Cargando modelo SVM, escalador y umbral óptimo...")
 try:
     scaler = joblib.load('scaler_cascada.pkl')
     modelo_svm = joblib.load('modelo_svm_cascada.pkl')
-    print("✅ ¡Modelos listos para recibir peticiones!")
+
+    with open('umbral_optimo.json', 'r') as f:
+        config_umbral = json.load(f)
+    UMBRAL = float(config_umbral['umbral'])
+    print(f"✅ ¡Modelos listos! Umbral óptimo cargado = {UMBRAL:.2f}")
 except Exception as e:
     print(f"❌ Error al cargar los modelos: {e}")
+    UMBRAL = 0.5  # fallback
 
-# Definir la estructura de los datos
+# ============================================================
+# ESQUEMA DE DATOS
+# ============================================================
+
+
 class LecturaSensores(BaseModel):
-    temperatura: float
-    humedad_aire: float
-    humedad_tierra_base: float
-    horas_desde_ultimo_riego: float
+    temperatura: float = Field(..., description="Temperatura ambiente en °C")
+    humedad_aire: float = Field(...,
+                                description="Humedad relativa del aire (%)")
+    humedad_tierra_base: float = Field(...,
+                                       description="Humedad de la tierra (%)")
+    horas_desde_ultimo_riego: float = Field(..., ge=0,
+                                            description="Horas desde el último riego")
+
+# ============================================================
+# ENDPOINTS
+# ============================================================
+
 
 @app.post("/predecir")
 def predecir_riego(lectura: LecturaSensores):
+    """Recibe lectura de sensores y devuelve la decisión de riego."""
     try:
         # ==========================================
-        # 1. CAPA DE SEGURIDAD: Validar Hardware
+        # CAPA 1: VALIDAR HARDWARE (Sensor dañado)
         # ==========================================
-        # Si la humedad es menor a 0 o mayor a 100, el sensor se desconectó o se dañó.
-        if (lectura.humedad_aire < 0 or lectura.humedad_aire > 100 or 
-            lectura.humedad_tierra_base < 0 or lectura.humedad_tierra_base > 100):
+        if (lectura.humedad_aire < 0 or lectura.humedad_aire > 100 or
+                lectura.humedad_tierra_base < 0 or lectura.humedad_tierra_base > 100):
             return {
-                "estado_riego": -1, # -1 significa ERROR/BLOQUEO
+                "estado_riego": -1,
                 "accion": "DETENER_SISTEMA",
                 "mensaje": "🚨 ALERTA CRÍTICA: Lectura de humedad irreal.",
                 "detalle": "Revisar cableado del sensor. El SVM no se ejecutará por seguridad."
             }
 
         # ==========================================
-        # 2. CAPA DE ALERTAS CLIMÁTICAS
+        # CAPA 2: ALERTAS CLIMÁTICAS
         # ==========================================
         alerta_clima = "Ninguna. Clima estable."
         if lectura.temperatura > 40.0:
@@ -47,17 +85,20 @@ def predecir_riego(lectura: LecturaSensores):
             alerta_clima = "⚠️ ALERTA: Temperatura inusualmente baja para Cali."
 
         # ==========================================
-        # 3. EJECUCIÓN DEL MODELO SVM (Inteligencia)
+        # CAPA 3: MODELO SVM + UMBRAL ÓPTIMO
         # ==========================================
-        datos_diccionario = lectura.model_dump()
-        df_nueva_lectura = pd.DataFrame([datos_diccionario])
-        
-        lectura_escalada = scaler.transform(df_nueva_lectura)
-        prediccion = modelo_svm.predict(lectura_escalada)
-        resultado = int(prediccion[0])
-        
+        datos = lectura.model_dump()
+        df_lectura = pd.DataFrame([datos])
+        lectura_escalada = scaler.transform(df_lectura)
+
+        # Probabilidad de la clase positiva (regar)
+        proba = float(modelo_svm.predict_proba(lectura_escalada)[0, 1])
+
+        # Aplicar el UMBRAL ÓPTIMO (ajustado en threshold tuning)
+        resultado = int(proba >= UMBRAL)
+
         # ==========================================
-        # 4. RESPUESTA FINAL
+        # RESPUESTA FINAL
         # ==========================================
         if resultado == 1:
             accion_texto = "INICIAR_CICLO"
@@ -65,17 +106,25 @@ def predecir_riego(lectura: LecturaSensores):
         else:
             accion_texto = "NO_REGAR"
             mensaje_riego = "☀️ SVM ordenó esperar. Condiciones de humedad óptimas."
-            
+
         return {
             "estado_riego": resultado,
+            "probabilidad_riego": round(proba, 4),
+            "umbral_usado": UMBRAL,
             "accion": accion_texto,
             "mensaje": mensaje_riego,
             "alerta_climatica": alerta_clima
         }
-        
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.get("/")
 def estado_servidor():
-    return {"mensaje": "El servidor del invernadero está funcionando y validando datos 🌱"}
+    """Verifica que el servidor esté activo y el modelo cargado."""
+    return {
+        "mensaje": "🌱 Servidor del invernadero activo",
+        "modelo": "SVM optimizado",
+        "umbral_optimo": UMBRAL
+    }
