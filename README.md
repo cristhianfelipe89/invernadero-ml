@@ -1,138 +1,110 @@
-# 🌿 Proyecto Invernadero: Modelo ML para Riego en Cascada (SVM + Threshold Tuning)
+# 🌿 Proyecto Invernadero Inteligente V3: Arquitectura Híbrida (SVM + Deep Learning)
 
-Sistema de Machine Learning que predice cuándo activar el riego de un invernadero a partir de datos de sensores (temperatura, humedad del aire, humedad de la tierra y horas desde el último riego).
+Este proyecto implementa un sistema inteligente de toma de decisiones para la activación del riego en un invernadero simulado en Cali, Colombia. Evolucionando desde modelos clásicos de Machine Learning, esta versión introduce una **Arquitectura Híbrida (Ensemble)** que combina sensores locales con pronósticos climáticos de internet mediante Deep Learning.
 
-Se realiza un **benchmarking completo** de tres modelos (KNN, Árbol de Decisión, SVM) y se elige **SVM (Support Vector Machine)** como modelo de producción por su superior rendimiento en las métricas clave. Adicionalmente, se realiza un **barrido de thresholds** para encontrar el umbral óptimo según el criterio del dominio (priorizar recall: no dejar el cultivo sin riego).
+Desarrollado para la electiva de **Profundización II - Machine Learning**, por Cristhian Felipe Herrera y Gonzalo Afanador Ochoa.
 
 ---
 
-## 📦 Estructura del proyecto
+## 🧠 Arquitectura del Sistema (4 Capas)
 
-```
+El sistema opera mediante una API REST en FastAPI que evalúa las condiciones en cascada:
+
+1. **Capa 1 (Hardware / Fallback):** Si el sensor local falla, el sistema no se detiene; transfiere el control 100% a la Red Neuronal (Deep Learning) usando datos de internet.
+2. **Capa 2 (Alertas Climáticas):** Detecta temperaturas extremas y genera advertencias preventivas.
+3. **Capa 3 (Modelo Local - SVM):** Evalúa el presente inmediato (humedad de la tierra y horas sin riego) con un umbral optimizado para priorizar el cuidado de la planta (Recall).
+4. **Capa 4 (Modelo Externo - ANN):** Evalúa el futuro cercano consultando la API de OpenMeteo y pasando los datos por una Red Neuronal de Keras/TensorFlow para vetar o confirmar el riego según la probabilidad de lluvia y humedad externa.
+
+---
+
+## 📦 Estructura del Proyecto
+
+```text
 invernadero-ml/
+├── .streamlit/
+│   └── config.toml                   # Fuerza el modo claro y colores del Dashboard
 ├── datos/
-│   └── invernadero_cascada.csv       # Dataset generado (10,000 registros)
-├── generar_dataset.py                # Genera el CSV simulado
-├── entrenar_modelo.py                # Entrena 3 modelos, benchmarking, threshold tuning
-├── predecir_riego.py                 # Predicción puntual desde consola
-├── api_riego.py                      # API REST con FastAPI
-├── simular_sensor.py                 # Simulador IoT que envía lecturas a la API
-├── requerimientos.txt                # Dependencias Python
-├── scaler_cascada.pkl                # (generado) escalador StandardScaler
-├── modelo_svm_cascada.pkl            # (generado) SVM entrenado (producción)
-├── modelo_knn_cascada.pkl            # (generado) KNN entrenado (benchmarking)
-├── modelo_tree_cascada.pkl           # (generado) Árbol entrenado (benchmarking)
-├── umbral_optimo.json                # (generado) umbral óptimo + parámetros SVM
-├── benchmark_resultados.csv          # (generado) tabla comparativa de modelos
-├── analisis_umbrales.png             # (generado) gráfico de thresholds
-└── benchmark_comparativo.png         # (generado) gráfico comparativo de modelos
+│   ├── invernadero_cascada.csv       # Dataset original simulado (10,000 registros)
+│   └── logs_riego.csv                # Registro histórico de decisiones (Auditoría)
+├── src_modelos/                      # (Modelos generados tras entrenamiento)
+│   ├── scaler_cascada.pkl            # Estandarizador de datos
+│   ├── modelo_svm_cascada.pkl        # Modelo ML clásico
+│   ├── modelo_dl_cascada.h5          # Modelo Deep Learning (Keras)
+│   └── umbral_optimo.json            # Umbral calibrado (ej. 0.30)
+├── generar_dataset.py                # Script generador de datos sintéticos
+├── entrenar_modelo.py                # Entrena SVM, hace benchmarking y threshold tuning
+├── entrenar_dl.py                    # Entrena la Red Neuronal Artificial (ANN)
+├── api_riego.py                      # (BACKEND) API FastAPI Híbrida
+├── dashboard.py                      # (FRONTEND) Interfaz en Streamlit con KPIs
+├── simular_sensor.py                 # (IOT) Simulador de envío de datos y fallas
+└── requerimientos.txt                # Dependencias del proyecto
 ```
 
 ---
 
-## 🚀 Instrucciones de Instalación y Ejecución
+## 🚀 Instrucciones de Ejecución
 
-### Paso 1 — Clonar el repositorio
+El sistema opera con base en microservicios, por lo que requiere levantar el backend (API) y el frontend (Dashboard) por separado. 
+
+Elige la opción que corresponda a tu caso:
+
+### Opción A: Ejecución desde cero (Primera vez)
+Sigue estos pasos si acabas de clonar el repositorio y necesitas construir y entrenar los modelos de Inteligencia Artificial:
+
+**1. Crear entorno e instalar dependencias:**
 ```bash
-git clone <URL_DEL_REPOSITORIO>
-cd invernadero-ml
-```
-
-### Paso 2 — Crear y activar el entorno virtual
-
-**Windows (PowerShell):**
-```cmd
 python -m venv venv
-venv\Scripts\activate
-```
-
-**Mac/Linux:**
-```bash
-python3 -m venv venv
-source venv/bin/activate
-```
-
-### Paso 3 — Instalar dependencias
-```bash
-python -m pip install --upgrade pip
+# En Windows: venv\Scripts\activate 
+# En Mac/Linux: source venv/bin/activate
 pip install -r requerimientos.txt
 ```
 
-### Paso 4 — Generar el dataset simulado
+**2. Generar el dataset sintético (10.000 registros):**
 ```bash
 python generar_dataset.py
 ```
-Crea `datos/invernadero_cascada.csv` con 10,000 registros sintéticos.
 
-### Paso 5 — Entrenar los modelos y calcular el umbral óptimo
+**3. Entrenar el modelo local (SVM) y generar el escalador:**
 ```bash
 python entrenar_modelo.py
 ```
-Este script:
-1. Carga el dataset y lo divide (train 70% / test 30%, estratificado).
-2. Escala con `StandardScaler` y guarda `scaler_cascada.pkl`.
-3. **Benchmarking**: entrena KNN, Árbol de Decisión y SVM con `GridSearchCV` y validación cruzada estratificada.
-4. Imprime tabla comparativa con Accuracy, Precision, Recall, F1 y ROC-AUC.
-5. **Threshold tuning** sobre SVM: barrido de umbrales [0.3, 0.4, 0.5, 0.6, 0.7].
-6. Elige el umbral óptimo con el criterio: *recall ≥ 0.95, max precision*.
-7. Guarda todos los artefactos (.pkl, .json, .csv, .png).
 
-### Paso 6 — Probar una predicción puntual (opcional)
+**4. Entrenar la Red Neuronal (Deep Learning):**
 ```bash
-python predecir_riego.py
+python entrenar_dl.py
 ```
 
-### Paso 7 — Levantar la API REST
+*Una vez creados los archivos `.pkl` y `.h5`, pasa a la Opción B para encender el sistema.*
+
+---
+
+### Opción B: Arranque del Sistema en Vivo (Showcase)
+Si ya tienes los modelos entrenados y los archivos generados, necesitas abrir **3 terminales separadas** (asegúrate de que el entorno `venv` esté activo en las tres):
+
+**Terminal 1: El Cerebro Híbrido (Backend)**
+Levanta la API REST que orquesta el SVM, la Red Neuronal y la API de clima en internet.
 ```bash
 uvicorn api_riego:app --reload
 ```
-- `GET /` — estado del servidor
-- `POST /predecir` — recibe lectura y devuelve decisión
-- Swagger: `http://127.0.0.1:8000/docs`
+*(Documentación interactiva disponible en: http://127.0.0.1:8000/docs)*
 
-### Paso 8 — Simulador de sensores
-En **otra terminal** (con venv activo y API corriendo):
+**Terminal 2: El Dashboard (Frontend)**
+Levanta la interfaz gráfica interactiva (Business Intelligence). Se abrirá automáticamente en tu navegador web.
+```bash
+streamlit run dashboard.py
+```
+
+**Terminal 3: Simulador IoT (Sensores en Tiempo Real)**
+Inicia el envío continuo de datos hacia la API cada 5 segundos. Este script inyecta aleatoriamente "fallas de sensor" para demostrar cómo el modelo de Deep Learning entra al rescate (Fallback).
 ```bash
 python simular_sensor.py
-python simular_sensor.py --intervalo 10   # cada 10 segundos
 ```
 
 ---
 
-## 🔁 Orden de ejecución resumido
-
-```bash
-# Una sola vez
-python -m venv venv
-venv\Scripts\activate
-pip install -r requerimientos.txt
-
-# Cada vez que quieras regenerar todo
-python generar_dataset.py            # 1) crea CSV
-python entrenar_modelo.py            # 2) entrena modelos + umbral
-python predecir_riego.py             # 3) (opcional) prueba puntual
-
-# Sistema en vivo (2 terminales)
-uvicorn api_riego:app --reload       # Terminal A
-python simular_sensor.py             # Terminal B
-```
-
----
-
-## 🧠 Sobre el modelo elegido: SVM
-
-Tras el benchmarking de los tres modelos, se seleccionó **SVM (Support Vector Machine)** porque:
-- Obtuvo el mejor **accuracy** y **F1 Score** en el conjunto de test.
-- Demostró resultados **consistentes** en la validación cruzada (bajo `f1_cv_std`).
-- Su capacidad para encontrar el hiperplano óptimo de separación lo hace potente con datos complejos.
-
-## 🎯 Sobre el threshold tuning (Sesión 7)
-
-El umbral por defecto (0.5) **rara vez es el óptimo**. Se prueban varios umbrales y se elige el que cumple:
-- **Recall ≥ 0.95** sobre la clase "Iniciar Riego"
-- y, dentro de los candidatos, el de **mayor Precision**.
-
-**Justificación de dominio:** un Falso Negativo (no regar cuando hace falta) puede dañar el cultivo, mientras que un Falso Positivo (regar de más) solo desperdicia agua. Por eso es preferible un umbral que se incline a regar.
-
-El umbral elegido se persiste en `umbral_optimo.json` y la API lo carga automáticamente al iniciar.
-
+## 🛠️ Tecnologías Utilizadas
+* **Machine Learning Clásico:** `scikit-learn` (SVM, Decision Trees, KNN).
+* **Deep Learning:** `TensorFlow` y `Keras` (ANN).
+* **Backend y API:** `FastAPI`, `Uvicorn`, `Pydantic`.
+* **Frontend y Visualización:** `Streamlit`, `Matplotlib`, `Pandas`.
+* **Conectividad Externa:** `requests` (OpenMeteo API).
