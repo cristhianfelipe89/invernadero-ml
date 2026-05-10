@@ -21,7 +21,7 @@ from sklearn.metrics import (
 # CONFIGURACIÓN CENTRALIZADA
 # ============================================================
 SEMILLA = 42
-TEST_SIZE = 0.30
+TEST_SIZE = 0.20
 N_FOLDS = 5
 RECALL_MINIMO = 0.95
 THRESHOLDS_BARRIDO = [0.30, 0.40, 0.50, 0.60, 0.70]
@@ -32,9 +32,9 @@ TARGET = "estado_riego"
 # ============================================================
 # 1. CARGAR Y PARTICIONAR EL DATASET
 # ============================================================
-print("=" * 70)
+print("=" * 80)
 print("  SISTEMA DE ENTRENAMIENTO - INVERNADERO ML")
-print("=" * 70)
+print("=" * 80)
 
 print("\n[1/8] Cargando el archivo CSV...")
 df = pd.read_csv(RUTA_CSV)
@@ -103,7 +103,7 @@ modelos_config = {
 # 4. BENCHMARKING - ENTRENAR Y EVALUAR LOS 3 MODELOS
 # ============================================================
 print("\n[3/8] Ejecutando benchmarking de modelos...")
-print("-" * 70)
+print("-" * 80)
 
 resultados_benchmark = []
 modelos_entrenados = {}
@@ -160,9 +160,9 @@ for nombre, config in modelos_config.items():
 # 5. TABLA COMPARATIVA DEL BENCHMARKING
 # ============================================================
 df_benchmark = pd.DataFrame(resultados_benchmark)
-print("\n" + "=" * 70)
+print("\n" + "=" * 80)
 print("  TABLA COMPARATIVA - BENCHMARKING DE MODELOS")
-print("=" * 70)
+print("=" * 80)
 cols_mostrar = ['modelo', 'accuracy', 'precision', 'recall', 'f1',
                 'roc_auc', 'f1_cv_mean', 'f1_cv_std']
 print(df_benchmark[cols_mostrar].to_string(index=False))
@@ -203,16 +203,16 @@ for nombre, config in modelos_config.items():
 #   - Falso Negativo (FN) = NO regar cuando se necesitaba -> planta dañada
 #   - Falso Positivo (FP) = regar cuando NO hacía falta  -> agua desperdiciada
 # El FN es mucho más costoso.
-print("\n" + "=" * 70)
+print("\n" + "=" * 80)
 print("  BARRIDO DE THRESHOLDS - SVM (Sesión 7)")
-print("=" * 70)
+print("=" * 80)
 
 svm = modelos_entrenados["SVM"]
 y_probs_svm = svm.predict_proba(X_test_scaled)[:, 1]
 
 print(f"\n{'Threshold':<12}{'Precision':>12}{'Recall':>12}{'F1':>10}"
       f"{'TP':>6}{'FP':>6}{'FN':>6}{'TN':>6}")
-print("-" * 70)
+print("-" * 80)
 
 filas_threshold = []
 for t in THRESHOLDS_BARRIDO:
@@ -358,9 +358,9 @@ plt.show()
 # ==============================================================
 # RESUMEN FINAL
 # ==============================================================
-print("\n" + "=" * 70)
+print("\n" + "=" * 80)
 print("  ✅ ENTRENAMIENTO FINALIZADO")
-print("=" * 70)
+print("=" * 80)
 print(f"  Modelo de producción: SVM")
 print(f"  Umbral óptimo:        {UMBRAL_ELEGIDO:.2f}")
 print(f"  Criterio:             {criterio}")
@@ -373,4 +373,4 @@ print(f"    - umbral_optimo.json")
 print(f"    - benchmark_resultados.csv")
 print(f"    - analisis_umbrales.png")
 print(f"    - benchmark_comparativo.png")
-print("=" * 70)
+print("=" * 80)
