@@ -1,14 +1,40 @@
 import streamlit as st
 import pandas as pd
+import altair as alt
 import time
 import os
 from datetime import datetime
 
 # Configuración de la página
-st.set_page_config(page_title="Invernadero Inteligente", layout="wide")
+st.set_page_config(page_title="Invernadero Inteligente V3", layout="wide", initial_sidebar_state="collapsed")
 
-st.title("🌱 Dashboard: Invernadero Inteligente (Híbrido SVM + DL)")
-st.markdown("Monitor de decisiones y KPIs de salud del sistema en tiempo real.")
+# 1. CSS: Ocultar header, espaciado corregido y fuentes gigantes (Versión Limpia)
+st.markdown("""
+    <style>
+    .stApp { background-color: #f1f5f9; }
+    #MainMenu {visibility: hidden;} 
+    header {visibility: hidden;} 
+    footer {visibility: hidden;}
+    
+    /* Padding superior aumentado a 5rem para despegarlo totalmente del borde */
+    .block-container { 
+        padding-top: 5rem; 
+        padding-bottom: 3rem; 
+        max-width: 95%; 
+    }
+    
+    .section-header {
+        color: #475569;
+        font-size: 16px;
+        font-weight: 800;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        margin-bottom: 12px;
+        border-bottom: 2px solid #cbd5e1;
+        padding-bottom: 5px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
 archivo_logs = "datos/logs_riego.csv"
 
@@ -16,40 +42,35 @@ def cargar_datos():
     if os.path.exists(archivo_logs):
         try:
             df = pd.read_csv(archivo_logs)
-            if not df.empty:
-                df['timestamp'] = pd.to_datetime(df['timestamp'])
+            if not df.empty: df['timestamp'] = pd.to_datetime(df['timestamp'])
             return df
-        except Exception:
-            return pd.DataFrame()
+        except: return pd.DataFrame()
     return pd.DataFrame()
 
-# Función para crear las tarjetas HTML/CSS
-def crear_tarjeta(titulo, valor, icono, color):
-    html_tarjeta = f"""
+def crear_tarjeta_gigante(titulo, valor, icono, color_borde):
+    return f"""
     <div style="
-        border-radius: 10px;
-        border-left: 6px solid {color};
-        padding: 20px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        text-align: center;
-        background-color: rgba(128, 128, 128, 0.1);
-        margin-bottom: 20px;
-        height: 140px;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;">
-        <p style="margin: 0; font-size: 1.1rem; opacity: 0.8;">{icono} {titulo}</p>
-        <h2 style="margin: 5px 0 0 0; font-size: 1.8rem; color: {color};">{valor}</h2>
+        background-color: #ffffff;
+        border-radius: 12px;
+        border-bottom: 10px solid {color_borde};
+        padding: 25px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        margin-bottom: 15px;
+        text-align: center;">
+        <div style="font-size: 14px; color: #64748b; font-weight: 700; text-transform: uppercase; margin-bottom: 10px;">{titulo}</div>
+        <div style="font-size: 34px; font-weight: 900; color: #1e293b; line-height: 1.1;">
+            <span style="font-size: 30px; margin-right: 10px;">{icono}</span>{valor}
+        </div>
     </div>
     """
-    return html_tarjeta
 
-# Diccionario para mapeo amigable
 MAPEO_MOTOR = {
-    "DEEP_LEARNING_FALLBACK": "DL (Fallo Sensor)",
-    "ENSEMBLE_CONFIRMADO": "Ensemble (SVM + DL)",
-    "DEEP_LEARNING_VETO": "DL (Veto Clima)",
-    "SVM_OPTIMO": "SVM (Local)"
+    "DEEP_LEARNING_FALLBACK": "⚠️ FALLBACK DL",
+    "IGNORANDO_RUIDO": "🛡️ FILTRO RUIDO",
+    "ENSEMBLE_CONFIRMADO": "🤝 ENSEMBLE",
+    "DEEP_LEARNING_VETO": "🛑 VETO CLIMA",
+    "SVM_OPTIMO": "🤖 SVM LOCAL",
+    "SVM_NO_REGAR": "🤖 SVM LOCAL"
 }
 
 placeholder = st.empty()
@@ -59,64 +80,94 @@ while True:
     
     with placeholder.container():
         if not df.empty:
+            ultima_lectura = df.iloc[-1]
+            ultimo_timestamp = ultima_lectura['timestamp']
+            
             hoy = datetime.now().date()
             df['fecha'] = df['timestamp'].dt.date
             df_hoy = df[df['fecha'] == hoy]
-            ultima_lectura = df.iloc[-1]
+            alertas_hoy = df_hoy[df_hoy['metodo'] == 'DEEP_LEARNING_FALLBACK'].shape[0]
+            riegos_hoy = df_hoy[df_hoy['decision_final'] == 1].shape[0]
 
-            # --- ALERTA DE FALLO ---
-            motor_crudo = str(ultima_lectura.get('metodo', 'Desconocido'))
-            if motor_crudo == "DEEP_LEARNING_FALLBACK":
-                st.error("🚨 ¡ALERTA DE HARDWARE! Usando Fallback de Deep Learning.", icon="🚨")
+            # --- ENCABEZADO (Sin la campana) ---
+            st.markdown("<h1 style='color: #0f172a; margin-top: 0; margin-bottom: 0;'>🌿 Dashboard Invernadero IA</h1>", unsafe_allow_html=True)
+            st.markdown(f"<p style='color: #64748b; margin-top: 5px; font-weight: 600;'>Última actualización: {ultimo_timestamp.strftime('%H:%M:%S')}</p>", unsafe_allow_html=True)
 
-            # --- SECCIÓN 1: TEMPERATURAS EN TARJETAS SEPARADAS ---
-            st.subheader("🌡️ Monitor de Temperaturas")
-            t_col1, t_col2 = st.columns(2)
+            # --- TARJETAS AGRUPADAS ---
+            st.markdown("<br>", unsafe_allow_html=True)
+            col_izq, col_cen, col_der = st.columns(3)
+
+            with col_izq:
+                st.markdown("<div class='section-header'>⚙️ PANEL DE CONTROL</div>", unsafe_allow_html=True)
+                motor = MAPEO_MOTOR.get(str(ultima_lectura['metodo']), str(ultima_lectura['metodo']))
+                color_motor = "#ef4444" if "FALLBACK" in motor else "#6366f1"
+                st.markdown(crear_tarjeta_gigante("Motor Activo", motor, "", color_motor), unsafe_allow_html=True)
+                estado_val = "ABIERTA" if ultima_lectura['decision_final'] == 1 else "CERRADA"
+                color_val = "#10b981" if ultima_lectura['decision_final'] == 1 else "#94a3b8"
+                st.markdown(crear_tarjeta_gigante("Estado Válvula", estado_val, "🚿", color_val), unsafe_allow_html=True)
+
+            with col_cen:
+                st.markdown("<div class='section-header'>📍 MÉTRICAS LOCALES</div>", unsafe_allow_html=True)
+                st.markdown(crear_tarjeta_gigante("Humedad Tierra", f"{ultima_lectura['humedad_tierra']:.0f}%", "💧", "#3b82f6"), unsafe_allow_html=True)
+                st.markdown(crear_tarjeta_gigante("Temperatura Local", f"{ultima_lectura['temp_local']:.1f}°C", "🌡️", "#f59e0b"), unsafe_allow_html=True)
+
+            with col_der:
+                st.markdown("<div class='section-header'>☁️ DEEP LEARNING (WEB)</div>", unsafe_allow_html=True)
+                prob_dl = float(ultima_lectura.get('prob_dl', 0))
+                st.markdown(crear_tarjeta_gigante("Prob. Lluvia", f"{prob_dl * 100:.0f}%", "🌧️", "#8b5cf6"), unsafe_allow_html=True)
+                st.markdown(crear_tarjeta_gigante("Temperatura Web", f"{ultima_lectura['temp_internet']:.1f}°C", "🌐", "#0ea5e9"), unsafe_allow_html=True)
+
+            # --- CONTEOS DIARIOS ---
+            st.markdown("<br>", unsafe_allow_html=True)
+            kpi_col1, kpi_col2 = st.columns(2)
+            with kpi_col1:
+                st.markdown(crear_tarjeta_gigante("Riegos Ejecutados Hoy", str(riegos_hoy), "🔄", "#10b981"), unsafe_allow_html=True)
+            with kpi_col2:
+                color_falla = "#ef4444" if alertas_hoy > 0 else "#10b981"
+                st.markdown(crear_tarjeta_gigante("Fallas Críticas Sensor", str(alertas_hoy), "⚠️", color_falla), unsafe_allow_html=True)
+
+            # --- GRÁFICA CORREGIDA ---
+            st.markdown("<br>", unsafe_allow_html=True)
+            df_2h = df[df['timestamp'] >= (ultimo_timestamp - pd.Timedelta(hours=2))].copy()
+            df_2h['Local'] = df_2h['temp_local'].rolling(window=10, min_periods=1).mean()
+            df_2h['Internet'] = df_2h['temp_internet'].rolling(window=10, min_periods=1).mean()
+            df_melted = df_2h.melt(id_vars=['timestamp'], value_vars=['Local', 'Internet'], var_name='Origen', value_name='Temp')
             
-            with t_col1:
-                st.markdown(crear_tarjeta("Temperatura Sensor Local", f"{ultima_lectura['temp_local']} °C", "🌡️", "#FF9800"), unsafe_allow_html=True)
-            with t_col2:
-                st.markdown(crear_tarjeta("Temperatura Internet (API)", f"{ultima_lectura['temp_internet']} °C", "🌐", "#2196F3"), unsafe_allow_html=True)
-
-            st.divider()
-
-            # --- SECCIÓN 2: KPIs DE ESTADO Y SALUD ---
-            st.subheader("📊 Estado del Sistema y Salud")
-            k1, k2, k3, k4 = st.columns(4)
+            # La leyenda se configura de forma nativa en alt.Legend (Sin configure_legend que daba el error)
+            chart = alt.Chart(df_melted).mark_line(strokeWidth=4, interpolate='monotone').encode(
+                x=alt.X('timestamp:T', title='', axis=alt.Axis(format='%H:%M', grid=False, labelFontSize=14)),
+                y=alt.Y('Temp:Q', scale=alt.Scale(zero=False), title='Celsius (°C)', axis=alt.Axis(grid=True)),
+                color=alt.Color('Origen:N', 
+                                scale=alt.Scale(domain=['Local', 'Internet'], range=['#f59e0b', '#3b82f6']),
+                                legend=alt.Legend(
+                                    title=None, 
+                                    orient='top',           # Coloca la leyenda arriba (generalmente se auto-centra)
+                                    direction='horizontal', # Las pone una al lado de la otra
+                                    labelFontSize=15, 
+                                    symbolSize=120, 
+                                    padding=10
+                                )),
+                tooltip=['timestamp:T', 'Origen:N', alt.Tooltip('Temp:Q', format='.1f')]
+            ).properties(
+                title=alt.TitleParams(text='📉 Comparativa Térmica (Últimas 2 Horas)', fontSize=22, anchor='start', offset=30),
+                height=400
+            ).configure_view(strokeOpacity=0)
             
-            # Formateo
-            veces_regado_hoy = df_hoy[df_hoy['decision_final'] == 1].shape[0]
-            fallos_sensor_hoy = df_hoy[df_hoy['metodo'] == 'DEEP_LEARNING_FALLBACK'].shape[0]
-            
-            estado_txt = "REGANDO" if ultima_lectura['decision_final'] == 1 else "EN ESPERA"
-            color_est = "#4CAF50" if ultima_lectura['decision_final'] == 1 else "#FFC107"
-            motor_txt = MAPEO_MOTOR.get(motor_crudo, motor_crudo)
-            color_mot = "#F44336" if motor_crudo == "DEEP_LEARNING_FALLBACK" else "#00BCD4"
+            st.markdown('<div style="background-color: #ffffff; border-radius: 15px; padding: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">', unsafe_allow_html=True)
+            st.altair_chart(chart, use_container_width=True)
+            st.markdown('</div>', unsafe_allow_html=True)
 
-            with k1:
-                st.markdown(crear_tarjeta("Estado Riego", estado_txt, "💧", color_est), unsafe_allow_html=True)
-            with k2:
-                st.markdown(crear_tarjeta("Motor de Decisión", motor_txt, "🧠", color_mot), unsafe_allow_html=True)
-            with k3:
-                st.markdown(crear_tarjeta("Riegos Hoy", str(veces_regado_hoy), "🔄", "#9C27B0"), unsafe_allow_html=True)
-            with k4:
-                st.markdown(crear_tarjeta("Fallos Sensor", str(fallos_sensor_hoy), "⚠️", "#F44336" if fallos_sensor_hoy > 0 else "#4CAF50"), unsafe_allow_html=True)
-
-            st.divider()
-
-            # --- SECCIÓN 3: LOG DE AUDITORÍA ---
-            st.subheader("📋 Últimas Decisiones Registradas")
-            df_log = df[['timestamp', 'temp_local', 'temp_internet', 'metodo', 'decision_final']].copy()
-            df_log['metodo'] = df_log['metodo'].map(MAPEO_MOTOR).fillna(df_log['metodo'])
-            st.dataframe(df_log.tail(8).sort_values(by='timestamp', ascending=False), use_container_width=True)
-
-            # --- SECCIÓN 4: COMPARATIVA GRÁFICA (AL FINAL) ---
-            st.subheader("📈 Comparativa Histórica: Sensor vs Internet")
-            df_chart = df[['timestamp', 'temp_local', 'temp_internet']].set_index('timestamp')
-            df_chart = df_chart.rename(columns={'temp_local': 'Sensor Local (°C)', 'temp_internet': 'Internet API (°C)'})
-            st.line_chart(df_chart)
+            # --- LOG ---
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.subheader("📋 Log de Auditoría Operativa")
+            df_log = df.tail(8).copy().sort_values(by='timestamp', ascending=False)
+            def formato_accion(f):
+                m = MAPEO_MOTOR.get(f['metodo'], f['metodo'])
+                return f"{m} ➔ {'Regar' if f['decision_final']==1 else 'Espera'}"
+            df_log['Evento'] = df_log.apply(formato_accion, axis=1)
+            st.dataframe(df_log[['timestamp', 'Evento', 'metodo']].rename(columns={'timestamp': 'Fecha/Hora'}), use_container_width=True, hide_index=True)
             
         else:
-            st.info("Esperando datos del simulador...")
+            st.info("Sincronizando con el servidor...")
             
-    time.sleep(5.0)
+    time.sleep(2.5)
